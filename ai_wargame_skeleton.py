@@ -41,7 +41,7 @@ class GameType(Enum):
 
 ##############################################################################################################
 
-@dataclass(slots=True)
+@dataclass()
 class Unit:
     player: Player = Player.Attacker
     type: UnitType = UnitType.Program
@@ -101,7 +101,7 @@ class Unit:
 
 ##############################################################################################################
 
-@dataclass(slots=True)
+@dataclass()
 class Coord:
     """Representation of a game cell coordinate (row, col)."""
     row : int = 0
@@ -162,7 +162,7 @@ class Coord:
 
 ##############################################################################################################
 
-@dataclass(slots=True)
+@dataclass()
 class CoordPair:
     """Representation of a game move or a rectangular area via 2 Coords."""
     src : Coord = field(default_factory=Coord)
@@ -214,7 +214,7 @@ class CoordPair:
 
 ##############################################################################################################
 
-@dataclass(slots=True)
+@dataclass()
 class Options:
     """Representation of the game options."""
     dim: int = 5
@@ -229,7 +229,7 @@ class Options:
 
 ##############################################################################################################
 
-@dataclass(slots=True)
+@dataclass()
 class Stats:
     """Representation of the global game statistics."""
     evaluations_per_depth : dict[int,int] = field(default_factory=dict)
@@ -237,7 +237,7 @@ class Stats:
 
 ##############################################################################################################
 
-@dataclass(slots=True)
+@dataclass()
 class Game:
     """Representation of the game state."""
     board: list[list[Unit | None]] = field(default_factory=list)
