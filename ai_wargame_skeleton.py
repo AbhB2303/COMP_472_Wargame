@@ -41,7 +41,7 @@ class GameType(Enum):
 
 ##############################################################################################################
 
-@dataclass(slots=True)
+@dataclass()
 class Unit:
     player: Player = Player.Attacker
     type: UnitType = UnitType.Program
@@ -101,7 +101,7 @@ class Unit:
 
 ##############################################################################################################
 
-@dataclass(slots=True)
+@dataclass()
 class Coord:
     """Representation of a game cell coordinate (row, col)."""
     row : int = 0
@@ -162,7 +162,7 @@ class Coord:
 
 ##############################################################################################################
 
-@dataclass(slots=True)
+@dataclass()
 class CoordPair:
     """Representation of a game move or a rectangular area via 2 Coords."""
     src : Coord = field(default_factory=Coord)
@@ -214,7 +214,7 @@ class CoordPair:
 
 ##############################################################################################################
 
-@dataclass(slots=True)
+@dataclass()
 class Options:
     """Representation of the game options."""
     dim: int = 5
@@ -229,7 +229,7 @@ class Options:
 
 ##############################################################################################################
 
-@dataclass(slots=True)
+@dataclass()
 class Stats:
     """Representation of the global game statistics."""
     evaluations_per_depth : dict[int,int] = field(default_factory=dict)
@@ -237,7 +237,7 @@ class Stats:
 
 ##############################################################################################################
 
-@dataclass(slots=True)
+@dataclass()
 class Game:
     """Representation of the game state."""
     board: list[list[Unit | None]] = field(default_factory=list)
@@ -308,6 +308,59 @@ class Game:
         if target is not None:
             target.mod_health(health_delta)
             self.remove_dead(coord)
+            
+    def movement_disabled_from_combat(self, coords : CoordPair, unit : Unit) -> bool:
+        """Check if the unit is in combat"""
+        # check if adversarial unit in any of 4 directions
+        # AI, firewall, or program can not move if engaged (return false)
+        type = unit.type
+        unit_player = unit.player
+        unit_src = coords.src
+        if (type == UnitType.Program or type == UnitType.Firewall or type == UnitType.AI):
+            adjacent = unit_src.iter_adjacent()
+            for cell in adjacent:
+                # if cell is adversary, unit is in combat => return false
+                val = self.get(cell)
+                if not val is None:
+                    if val.player != unit_player:
+                        print("This unit is engaged in combat")
+                        return True
+            return False
+        else:
+            return False
+    
+    def restricted_movement(self, coords : CoordPair, unit : Unit) -> bool:
+        """Whether the intended move is restricted for this unit"""
+        type = unit.type
+        unit_player = unit.player
+        unit_src = coords.src
+        unit_dst = coords.dst
+        if (type == UnitType.Program or type == UnitType.Firewall or type == UnitType.AI):
+            # if attacker, can only move up or left
+            if (unit_player == Player.Attacker):
+                if ((unit_dst.row == unit_src.row - 1 and unit_dst.col == unit_src.col) or (unit_dst.row == unit_src.row and unit_dst.col == unit_src.col - 1)):
+                    return False
+                print("restricted move")
+                return True
+            # if defender, can only move down or right
+            if (unit_player == Player.Defender):
+                if ((unit_dst.row == unit_src.row + 1 and unit_dst.col == unit_src.col) or (unit_dst.row == unit_src.row and unit_dst.col == unit_src.col + 1)):
+                    return False
+                print("restricted move")
+                return True
+        return False
+    
+    def handle_attack(self):
+        # print("handling attack")
+        return False
+        
+    def handle_repair(self):
+        # print("handling repair")
+        return False
+        
+    def handle_self_destruct(self):
+        # print("handling self-destruct")
+        return False
 
     def is_valid_move(self, coords : CoordPair) -> bool:
         """Validate a move expressed as a CoordPair. TODO: WRITE MISSING CODE!!!"""
@@ -315,6 +368,12 @@ class Game:
             return False
         unit = self.get(coords.src)
         if unit is None or unit.player != self.next_player:
+            return False
+        # check if unit is engaged in combat
+        if self.movement_disabled_from_combat(coords, unit):
+            return False
+        # check if move is valid for this specific unit
+        if self.restricted_movement(coords, unit):
             return False
         unit = self.get(coords.dst)
         return (unit is None)
@@ -325,6 +384,20 @@ class Game:
             self.set(coords.dst,self.get(coords.src))
             self.set(coords.src,None)
             return (True,"")
+        else:
+            # check and handle if move is an attack
+            is_attack = self.handle_attack()
+            
+            # check and handle if move is a repair
+            is_repair = self.handle_repair()
+            
+            # check and handle if move is a self-destruct
+            is_self_destruct = self.handle_self_destruct()
+            
+            # if any of the above were true, return valid move to change turn
+            if (is_attack or is_repair or is_self_destruct):
+                return (True,"")
+            
         return (False,"invalid move")
 
     def next_turn(self):
