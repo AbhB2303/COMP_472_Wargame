@@ -349,10 +349,37 @@ class Game:
                 print("restricted move")
                 return True
         return False
-    
-    def handle_attack(self):
+
+    def handle_attack(self, coords: CoordPair) -> bool:
         # print("handling attack")
-        return False
+        attacker_unit = self.get(coords.src)
+        defender_unit = self.get(coords.dst)
+
+        # Check if attacking opposing unit
+        if defender_unit is None or attacker_unit.player == defender_unit.player:
+            return False
+
+        # Calculations for Damage from both units
+        attacker_damage = attacker_unit.damage_amount(defender_unit)
+        defender_damage = defender_unit.damage_amount(attacker_unit)
+
+        # Have both units damaged
+        defender_unit.mod_health(-attacker_damage)
+        attacker_unit.mod_health(-defender_damage)
+
+        # Destroy Defending Unit if Health Reaches 0
+        if not defender_unit.is_alive():
+            self.set(coords.dst, None)
+
+        # Destroy Attacking Unit if Health Reaches 0
+        if not attacker_unit.is_alive():
+            self.set(coords.src, None)
+        else:
+            # If defender is destroyed, move attack
+            if not defender_unit.is_alive():
+                self.set(coords.dst, attacker_unit)
+                self.set(coords.src, None)
+        return True
         
     def handle_repair(self):
         # print("handling repair")
@@ -386,7 +413,7 @@ class Game:
             return (True,"")
         else:
             # check and handle if move is an attack
-            is_attack = self.handle_attack()
+            is_attack = self.handle_attack(coords)
             
             # check and handle if move is a repair
             is_repair = self.handle_repair()
