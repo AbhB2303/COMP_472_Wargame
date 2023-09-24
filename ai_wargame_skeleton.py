@@ -329,12 +329,16 @@ class Game:
         else:
             return False
     
-    def restricted_movement(self, coords : CoordPair, unit : Unit) -> bool:
+    def restricted_movement(self, coords : CoordPair) -> bool:
         """Whether the intended move is restricted for this unit"""
-        type = unit.type
-        unit_player = unit.player
+        type = self.get(coords.src).type
+        unit_player = self.get(coords.src).player
         unit_src = coords.src
         unit_dst = coords.dst
+        if (unit_src == unit_dst):
+            # self destruct - valid for any unit
+            return True
+        
         if (type == UnitType.Program or type == UnitType.Firewall or type == UnitType.AI):
             # if attacker, can only move up or left
             if (unit_player == Player.Attacker):
@@ -348,45 +352,72 @@ class Game:
                     return False
                 print("restricted move")
                 return True
+        elif (type == UnitType.Tech or type == UnitType.Virus):
+            adj_cells = unit_src.iter_adjacent()
+            for cell in adj_cells:
+                if cell == unit_dst:
+                    return False
+            return True
+            
         return False
 
     def handle_attack(self, coords: CoordPair) -> bool:
         # print("handling attack")
         attacker_unit = self.get(coords.src)
         defender_unit = self.get(coords.dst)
-
+        
         # Check if attacking opposing unit
-        if defender_unit is None or attacker_unit.player == defender_unit.player:
+        if defender_unit is None or attacker_unit is None:
             return False
+        
+        if attacker_unit.player == defender_unit.player:
+            return False
+        
+        surrounding_cells = coords.src.iter_adjacent()
+        # check if attacking adjacent unit
+        for cell in surrounding_cells:
+            if self.get(cell) == defender_unit:
+                # Calculations for Damage from both units
+                attacker_damage = attacker_unit.damage_amount(defender_unit)
+                defender_damage = defender_unit.damage_amount(attacker_unit)
 
-        # Calculations for Damage from both units
-        attacker_damage = attacker_unit.damage_amount(defender_unit)
-        defender_damage = defender_unit.damage_amount(attacker_unit)
+                # Have both units damaged
+                defender_unit.mod_health(-attacker_damage)
+                attacker_unit.mod_health(-defender_damage)
 
-        # Have both units damaged
-        defender_unit.mod_health(-attacker_damage)
-        attacker_unit.mod_health(-defender_damage)
+                # Destroy Defending Unit if Health Reaches 0
+                if not defender_unit.is_alive():
+                    self.remove_dead(coords.dst)
+                    self.set(coords.dst, None)
 
-        # Destroy Defending Unit if Health Reaches 0
-        if not defender_unit.is_alive():
-            self.set(coords.dst, None)
-
-        # Destroy Attacking Unit if Health Reaches 0
-        if not attacker_unit.is_alive():
-            self.set(coords.src, None)
-        else:
-            # If defender is destroyed, move attack
-            if not defender_unit.is_alive():
-                self.set(coords.dst, attacker_unit)
-                self.set(coords.src, None)
-        return True
+                # Destroy Attacking Unit if Health Reaches 0
+                if not attacker_unit.is_alive():
+                    self.remove_dead(coords.src)
+                    self.set(coords.src, None)
+                else:
+                    # If defender is destroyed, move attack
+                    if not defender_unit.is_alive():
+                        self.set(coords.dst, attacker_unit)
+                        self.set(coords.src, None)
+                return True
+        return False
         
     def handle_repair(self):
         # print("handling repair")
         return False
         
-    def handle_self_destruct(self):
-        # print("handling self-destruct")
+    def handle_self_destruct(self, coords: CoordPair) -> bool:
+        unit = self.get(coords.src) 
+        if (coords.src == coords.dst and unit is not None and unit.player == self.next_player):
+            surrounding_cells = coords.src.iter_range(1)
+            destruct_unit = self.get(coords.src)
+            destruct_unit.mod_health(-9)
+            self.remove_dead(coords.src)
+            for cell in surrounding_cells:
+                unit = self.get(cell)
+                if unit is not None:
+                    unit.mod_health(-2)
+            return True
         return False
 
     def is_valid_move(self, coords : CoordPair) -> bool:
@@ -400,7 +431,7 @@ class Game:
         if self.movement_disabled_from_combat(coords, unit):
             return False
         # check if move is valid for this specific unit
-        if self.restricted_movement(coords, unit):
+        if self.restricted_movement(coords):
             return False
         unit = self.get(coords.dst)
         return (unit is None)
@@ -419,7 +450,7 @@ class Game:
             is_repair = self.handle_repair()
             
             # check and handle if move is a self-destruct
-            is_self_destruct = self.handle_self_destruct()
+            is_self_destruct = self.handle_self_destruct(coords)
             
             # if any of the above were true, return valid move to change turn
             if (is_attack or is_repair or is_self_destruct):
