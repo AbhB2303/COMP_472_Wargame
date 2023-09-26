@@ -381,8 +381,26 @@ class Game:
                 self.set(coords.src, None)
         return True
         
-    def handle_repair(self):
-        # print("handling repair")
+     #ATTEMPT for the REPAIR
+    def handle_repair(self) -> bool:
+        #we need to check the repair for the player
+        coords = self.read_move()
+        if self.is_valid_move(coords):
+            unit_src = self.get(coords.src)
+            unit_dst = self.get(coords.dst)
+
+            if unit_src is not None and unit_dst is not None:
+                #what if the units for destination and source are same
+                if unit_src.player == unit_dst.player:
+                    repair_amount = unit_src.repair_amount(unit_dst)
+                    # we have to make sure that destination is not at health 9
+                    if repair_amount > 0:
+                            if unit_dst.health < 9: 
+                                unit_dst.mod_health(repair_amount) 
+                                self.next_turn()
+                                return True
+        
+        print("Handling repair did not work!")
         return False
         
     def handle_self_destruct(self):
