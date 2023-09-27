@@ -387,10 +387,10 @@ class Game:
             unit_src = self.get(coords.src)
             unit_dst = self.get(coords.dst)
 
-            if unit_src is not None and unit_dst is not None:
+            if unit_src is not None and unit_dst is not None and unit_src != unit_dst: :
                 #what if the units for destination and source are same
                 if unit_src.player == unit_dst.player:
-                    if unit_src != unit_dst:
+                    if coords.dst in coords.src.iter.adjacent():
                         repair_amount = unit_src.repair_amount(unit_dst)
                     # we have to make sure that destination is not at health 9
                     if repair_amount > 0:
