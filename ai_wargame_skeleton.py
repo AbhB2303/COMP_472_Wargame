@@ -323,7 +323,6 @@ class Game:
                 val = self.get(cell)
                 if not val is None:
                     if val.player != unit_player:
-                        print("This unit is engaged in combat")
                         return True
             return False
         else:
@@ -340,13 +339,11 @@ class Game:
             if (unit_player == Player.Attacker):
                 if ((unit_dst.row == unit_src.row - 1 and unit_dst.col == unit_src.col) or (unit_dst.row == unit_src.row and unit_dst.col == unit_src.col - 1)):
                     return False
-                print("restricted move")
                 return True
             # if defender, can only move down or right
             if (unit_player == Player.Defender):
                 if ((unit_dst.row == unit_src.row + 1 and unit_dst.col == unit_src.col) or (unit_dst.row == unit_src.row and unit_dst.col == unit_src.col + 1)):
                     return False
-                print("restricted move")
                 return True
         return False
 
@@ -388,18 +385,15 @@ class Game:
         unit_dst = self.get(coords.dst)
 
         if unit_src is not None and unit_dst is not None and unit_src != unit_dst:
-        #what if the units for destination and source are same
+            # what if the units for destination and source are same
             if unit_src.player == unit_dst.player:
-                if coords.dst in coords.src.iter.adjacent():
+                if coords.dst in coords.src.iter_adjacent():
                     repair_amount = unit_src.repair_amount(unit_dst)
                     # we have to make sure that destination is not at health 9
                     if repair_amount > 0:
-                        if unit_dst.health < 9: unit_dst.mod_health(repair_amount) 
-                        self.next_turn()
-                        return True
-
-        
-        print("Handling repair did not work!")
+                        if unit_dst.health < 9: 
+                            unit_dst.mod_health(repair_amount) 
+                            return True
         return False
         
     def handle_self_destruct(self):
