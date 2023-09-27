@@ -390,7 +390,7 @@ class Game:
             if unit_src is not None and unit_dst is not None:
                 #what if the units for destination and source are same
                 if unit_src.player == unit_dst.player:
-                    if unit_src.player == unit_dst.player:
+                    if unit_src != unit_dst:
                         repair_amount = unit_src.repair_amount(unit_dst)
                     # we have to make sure that destination is not at health 9
                     if repair_amount > 0:
@@ -433,7 +433,7 @@ class Game:
             is_attack = self.handle_attack(coords)
             
             # check and handle if move is a repair
-            is_repair = self.handle_repair()
+            is_repair = self.handle_repair(coords)
             
             # check and handle if move is a self-destruct
             is_self_destruct = self.handle_self_destruct()
