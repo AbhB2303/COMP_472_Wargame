@@ -436,11 +436,13 @@ class Game:
         unit = self.get(coords.dst)
         return (unit is None)
 
-    def perform_move(self, coords : CoordPair) -> Tuple[bool,str]:
+    def perform_move(self, coords : CoordPair, trace_file = None) -> Tuple[bool,str]:
         """Validate and perform a move expressed as a CoordPair. TODO: WRITE MISSING CODE!!!"""
         if self.is_valid_move(coords):
             self.set(coords.dst,self.get(coords.src))
             self.set(coords.src,None)
+            if trace_file:
+                trace_file.write("move: " + str(coords.to_string()))
             return (True,"")
         else:
             # check and handle if move is an attack
@@ -452,9 +454,19 @@ class Game:
             # check and handle if move is a self-destruct
             is_self_destruct = self.handle_self_destruct(coords)
             
+            if trace_file:
+                if is_attack:
+                    trace_file.write("attack: "  + str(coords.to_string()))
+                    
+                if is_repair:
+                    trace_file.write("repair: "  + str(coords.to_string()))
+                    
+                if is_self_destruct:
+                    trace_file.write("self-destruct: "  + str(coords.to_string()))
+            
             # if any of the above were true, return valid move to change turn
             if (is_attack or is_repair or is_self_destruct):
-                return (True,"")
+                return (True,"") 
             
         return (False,"invalid move")
 
@@ -511,14 +523,14 @@ class Game:
             else:
                 print('Invalid coordinates! Try again.')
     
-    def human_turn(self):
+    def human_turn(self, trace_file):
         """Human player plays a move (or get via broker)."""
         if self.options.broker is not None:
             print("Getting next move with auto-retry from game broker...")
             while True:
                 mv = self.get_move_from_broker()
                 if mv is not None:
-                    (success,result) = self.perform_move(mv)
+                    (success,result) = self.perform_move(mv, trace_file)
                     print(f"Broker {self.next_player.name}: ",end='')
                     print(result)
                     if success:
@@ -528,7 +540,7 @@ class Game:
         else:
             while True:
                 mv = self.read_move()
-                (success,result) = self.perform_move(mv)
+                (success,result) = self.perform_move(mv, trace_file)
                 if success:
                     print(f"Player {self.next_player.name}: ",end='')
                     print(result)
@@ -695,7 +707,30 @@ def main():
 
     # create a new game
     game = Game(options=options)
+    
+    # Create trace file   
+    beta_alpha = "AI off"
+    if (game.options.game_type != GameType.AttackerVsDefender ):
+        beta_alpha = str(options.alpha_beta)
+    
+    heuristic = "AI off"
+    
+    ifAlphaBeta = str(options.alpha_beta) 
+    max_time = str(options.max_time)
+    max_turns = str(options.max_turns)
+    filename = "gameTrace-" + ifAlphaBeta + "-" + max_time + "-" + max_turns + ".txt"
+    trace_file = open(filename, "w") 
+    trace_file.write("Game Trace \n\n\n" +
+                     "Game Parameters:\n" + 
+                     "\ntimeout: " + str(options.max_time) + " seconds" +
+                     "\nmax turns: " + str(options.max_turns) +
+                     "\nalpha-beta: " + beta_alpha +
+                     "\nplay mode: " + str(options.game_type.name) +
+                     "\nheuristic: " + heuristic + "\n\n\n")
 
+
+    trace_file.write("\n\nInitial Configuration: \n" + str(game.to_string()) + "\n\n")
+    
     # the main game loop
     while True:
         print()
@@ -703,13 +738,19 @@ def main():
         winner = game.has_winner()
         if winner is not None:
             print(f"{winner.name} wins!")
+            trace_file.write("\n\n\n" + f"{winner.name} wins in " + str(game.turns_played) + " turns!")
+            trace_file.write("\n\nFinal Board Configuration: \n\n")
+            trace_file.write(str(game.to_string()))
             break
+        else:
+            trace_file.write("\n\n" + str(game.to_string()))
+            
         if game.options.game_type == GameType.AttackerVsDefender:
-            game.human_turn()
+            game.human_turn(trace_file)
         elif game.options.game_type == GameType.AttackerVsComp and game.next_player == Player.Attacker:
-            game.human_turn()
+            game.human_turn(trace_file)
         elif game.options.game_type == GameType.CompVsDefender and game.next_player == Player.Defender:
-            game.human_turn()
+            game.human_turn(trace_file)
         else:
             player = game.next_player
             move = game.computer_turn()
@@ -718,6 +759,8 @@ def main():
             else:
                 print("Computer doesn't know what to do!!!")
                 exit(1)
+        
+    trace_file.write("\n\nGame Terminated")
 
 ##############################################################################################################
 
