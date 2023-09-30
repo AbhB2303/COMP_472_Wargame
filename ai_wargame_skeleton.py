@@ -328,12 +328,16 @@ class Game:
         else:
             return False
     
-    def restricted_movement(self, coords : CoordPair, unit : Unit) -> bool:
+    def restricted_movement(self, coords : CoordPair) -> bool:
         """Whether the intended move is restricted for this unit"""
-        type = unit.type
-        unit_player = unit.player
+        type = self.get(coords.src).type
+        unit_player = self.get(coords.src).player
         unit_src = coords.src
         unit_dst = coords.dst
+        if (unit_src == unit_dst):
+            # self destruct - valid for any unit
+            return True
+        
         if (type == UnitType.Program or type == UnitType.Firewall or type == UnitType.AI):
             # if attacker, can only move up or left
             if (unit_player == Player.Attacker):
@@ -345,44 +349,63 @@ class Game:
                 if ((unit_dst.row == unit_src.row + 1 and unit_dst.col == unit_src.col) or (unit_dst.row == unit_src.row and unit_dst.col == unit_src.col + 1)):
                     return False
                 return True
+        elif (type == UnitType.Tech or type == UnitType.Virus):
+            adj_cells = unit_src.iter_adjacent()
+            for cell in adj_cells:
+                if cell == unit_dst:
+                    return False
+            return True
+            
         return False
 
     def handle_attack(self, coords: CoordPair) -> bool:
         # print("handling attack")
         attacker_unit = self.get(coords.src)
         defender_unit = self.get(coords.dst)
-
+        
         # Check if attacking opposing unit
-        if defender_unit is None or attacker_unit.player == defender_unit.player:
+        if defender_unit is None or attacker_unit is None:
             return False
+        
+        if attacker_unit.player == defender_unit.player:
+            return False
+        
+        if attacker_unit.player != self.next_player:
+            return False
+        
+        surrounding_cells = coords.src.iter_adjacent()
+        # check if attacking adjacent unit
+        for cell in surrounding_cells:
+            if self.get(cell) == defender_unit:
+                # Calculations for Damage from both units
+                attacker_damage = attacker_unit.damage_amount(defender_unit)
+                defender_damage = defender_unit.damage_amount(attacker_unit)
 
-        # Calculations for Damage from both units
-        attacker_damage = attacker_unit.damage_amount(defender_unit)
-        defender_damage = defender_unit.damage_amount(attacker_unit)
+                # Have both units damaged
+                defender_unit.mod_health(-attacker_damage)
+                attacker_unit.mod_health(-defender_damage)
 
-        # Have both units damaged
-        defender_unit.mod_health(-attacker_damage)
-        attacker_unit.mod_health(-defender_damage)
+                # Destroy Defending Unit if Health Reaches 0
+                if not defender_unit.is_alive():
+                    self.remove_dead(coords.dst)
+                    self.set(coords.dst, None)
 
-        # Destroy Defending Unit if Health Reaches 0
-        if not defender_unit.is_alive():
-            self.set(coords.dst, None)
+                # Destroy Attacking Unit if Health Reaches 0
+                if not attacker_unit.is_alive():
+                    self.remove_dead(coords.src)
+                    self.set(coords.src, None)
+               
+                return True
+        return False
 
-        # Destroy Attacking Unit if Health Reaches 0
-        if not attacker_unit.is_alive():
-            self.set(coords.src, None)
-        else:
-            # If defender is destroyed, move attack
-            if not defender_unit.is_alive():
-                self.set(coords.dst, attacker_unit)
-                self.set(coords.src, None)
-        return True
-
-             #ATTEMPT for the REPAIR
+    # ATTEMPT for the REPAIR
     def handle_repair(self, coords: CoordPair) -> bool:
-        #we need to check the repair for the player
+        # we need to check the repair for the player
         unit_src = self.get(coords.src)
         unit_dst = self.get(coords.dst)
+        
+        if unit_src.player != self.next_player and unit_dst.player != unit_dst:
+            return False
 
         if unit_src is not None and unit_dst is not None and unit_src != unit_dst:
             # what if the units for destination and source are same
@@ -396,8 +419,18 @@ class Game:
                             return True
         return False
         
-    def handle_self_destruct(self):
-        # print("handling self-destruct")
+    def handle_self_destruct(self, coords: CoordPair) -> bool:
+        unit = self.get(coords.src) 
+        if (coords.src == coords.dst and unit is not None and unit.player == self.next_player):
+            surrounding_cells = coords.src.iter_range(1)
+            destruct_unit = self.get(coords.src)
+            destruct_unit.mod_health(-9)
+            self.remove_dead(coords.src)
+            for cell in surrounding_cells:
+                unit = self.get(cell)
+                if unit is not None:
+                    unit.mod_health(-2)
+            return True
         return False
 
     def is_valid_move(self, coords : CoordPair) -> bool:
@@ -411,16 +444,18 @@ class Game:
         if self.movement_disabled_from_combat(coords, unit):
             return False
         # check if move is valid for this specific unit
-        if self.restricted_movement(coords, unit):
+        if self.restricted_movement(coords):
             return False
         unit = self.get(coords.dst)
         return (unit is None)
 
-    def perform_move(self, coords : CoordPair) -> Tuple[bool,str]:
+    def perform_move(self, coords : CoordPair, trace_file = None) -> Tuple[bool,str]:
         """Validate and perform a move expressed as a CoordPair. TODO: WRITE MISSING CODE!!!"""
         if self.is_valid_move(coords):
             self.set(coords.dst,self.get(coords.src))
             self.set(coords.src,None)
+            if trace_file:
+                trace_file.write("move: " + str(coords.to_string()))
             return (True,"")
         else:
             # check and handle if move is an attack
@@ -430,11 +465,21 @@ class Game:
             is_repair = self.handle_repair(coords)
             
             # check and handle if move is a self-destruct
-            is_self_destruct = self.handle_self_destruct()
+            is_self_destruct = self.handle_self_destruct(coords)
+            
+            if trace_file:
+                if is_attack:
+                    trace_file.write("attack: "  + str(coords.to_string()))
+                    
+                if is_repair:
+                    trace_file.write("repair: "  + str(coords.to_string()))
+                    
+                if is_self_destruct:
+                    trace_file.write("self-destruct: "  + str(coords.to_string()))
             
             # if any of the above were true, return valid move to change turn
             if (is_attack or is_repair or is_self_destruct):
-                return (True,"")
+                return (True,"") 
             
         return (False,"invalid move")
 
@@ -491,14 +536,14 @@ class Game:
             else:
                 print('Invalid coordinates! Try again.')
     
-    def human_turn(self):
+    def human_turn(self, trace_file):
         """Human player plays a move (or get via broker)."""
         if self.options.broker is not None:
             print("Getting next move with auto-retry from game broker...")
             while True:
                 mv = self.get_move_from_broker()
                 if mv is not None:
-                    (success,result) = self.perform_move(mv)
+                    (success,result) = self.perform_move(mv, trace_file)
                     print(f"Broker {self.next_player.name}: ",end='')
                     print(result)
                     if success:
@@ -508,7 +553,7 @@ class Game:
         else:
             while True:
                 mv = self.read_move()
-                (success,result) = self.perform_move(mv)
+                (success,result) = self.perform_move(mv, trace_file)
                 if success:
                     print(f"Player {self.next_player.name}: ",end='')
                     print(result)
@@ -675,7 +720,30 @@ def main():
 
     # create a new game
     game = Game(options=options)
+    
+    # Create trace file   
+    beta_alpha = "AI off"
+    if (game.options.game_type != GameType.AttackerVsDefender ):
+        beta_alpha = str(options.alpha_beta)
+    
+    heuristic = "AI off"
+    
+    ifAlphaBeta = str(options.alpha_beta) 
+    max_time = str(options.max_time)
+    max_turns = str(options.max_turns)
+    filename = "gameTrace-" + ifAlphaBeta + "-" + max_time + "-" + max_turns + ".txt"
+    trace_file = open(filename, "w") 
+    trace_file.write("Game Trace \n\n\n" +
+                     "Game Parameters:\n" + 
+                     "\ntimeout: " + str(options.max_time) + " seconds" +
+                     "\nmax turns: " + str(options.max_turns) +
+                     "\nalpha-beta: " + beta_alpha +
+                     "\nplay mode: " + str(options.game_type.name) +
+                     "\nheuristic: " + heuristic + "\n\n\n")
 
+
+    trace_file.write("\n\nInitial Configuration: \n" + str(game.to_string()) + "\n\n")
+    
     # the main game loop
     while True:
         print()
@@ -683,13 +751,19 @@ def main():
         winner = game.has_winner()
         if winner is not None:
             print(f"{winner.name} wins!")
+            trace_file.write("\n\n\n" + f"{winner.name} wins in " + str(game.turns_played) + " turns!")
+            trace_file.write("\n\nFinal Board Configuration: \n\n")
+            trace_file.write(str(game.to_string()))
             break
+        else:
+            trace_file.write("\n\n" + str(game.to_string()))
+            
         if game.options.game_type == GameType.AttackerVsDefender:
-            game.human_turn()
+            game.human_turn(trace_file)
         elif game.options.game_type == GameType.AttackerVsComp and game.next_player == Player.Attacker:
-            game.human_turn()
+            game.human_turn(trace_file)
         elif game.options.game_type == GameType.CompVsDefender and game.next_player == Player.Defender:
-            game.human_turn()
+            game.human_turn(trace_file)
         else:
             player = game.next_player
             move = game.computer_turn()
@@ -698,6 +772,8 @@ def main():
             else:
                 print("Computer doesn't know what to do!!!")
                 exit(1)
+        
+    trace_file.write("\n\nGame Terminated")
 
 ##############################################################################################################
 
