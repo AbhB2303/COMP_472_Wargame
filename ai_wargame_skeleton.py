@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from time import sleep
 from typing import Tuple, TypeVar, Type, Iterable, ClassVar
 import random
-import requests
+#import requests
 
 # maximum and minimum values for our heuristic scores (usually represents an end of game condition)
 MAX_HEURISTIC_SCORE = 2000000000
@@ -403,9 +403,11 @@ class Game:
         # we need to check the repair for the player
         unit_src = self.get(coords.src)
         unit_dst = self.get(coords.dst)
-        
-        if unit_src.player != self.next_player and unit_dst.player != unit_dst:
-            return False
+
+        if unit_src and unit_dst:
+            if unit_src.player != self.next_player and unit_dst.player != unit_dst:
+                return False
+
 
         if unit_src is not None and unit_dst is not None and unit_src != unit_dst:
             # what if the units for destination and source are same
@@ -686,6 +688,11 @@ class Game:
 
 ##############################################################################################################
 
+def game_parameters(options):
+    options.max_time = int(input("What is the maximum amount of time per move?"))
+
+    options.max_turns = int(input("What is the maximum number of turns for the game?"))
+
 def main():
     # parse command line arguments
     parser = argparse.ArgumentParser(
@@ -743,7 +750,11 @@ def main():
 
 
     trace_file.write("\n\nInitial Configuration: \n" + str(game.to_string()) + "\n\n")
-    
+
+
+    game_parameters(options)
+
+
     # the main game loop
     while True:
         print()
