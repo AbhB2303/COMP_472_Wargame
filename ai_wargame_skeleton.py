@@ -597,6 +597,8 @@ class Game:
                 return Player.Attacker    
         elif self._defender_has_ai:
             return Player.Defender
+        elif not self._defender_has_ai and not self._attacker_has_ai:
+            return Player.Defender
 
     def move_candidates(self) -> Iterable[CoordPair]:
         """Generate valid move candidates for the next player."""
