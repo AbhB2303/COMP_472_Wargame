@@ -359,7 +359,7 @@ class Game:
         return False
 
     def handle_attack(self, coords: CoordPair) -> bool:
-        # print("handling attack")
+
         attacker_unit = self.get(coords.src)
         defender_unit = self.get(coords.dst)
         
@@ -469,6 +469,7 @@ class Game:
             # check and handle if move is a self-destruct
             is_self_destruct = self.handle_self_destruct(coords)
             
+            # write action to trace file
             if trace_file:
                 if is_attack:
                     trace_file.write("attack: "  + str(coords.to_string()))
@@ -718,6 +719,9 @@ def main():
 
     # set up game options
     options = Options(game_type=game_type)
+    
+    # user input for configuration
+    game_parameters(options)
 
     # override class defaults via command line options
     if args.max_depth is not None:
@@ -737,10 +741,10 @@ def main():
     
     heuristic = "AI off"
     
-    ifAlphaBeta = str(options.alpha_beta) 
+    if_alpha_beta = str(options.alpha_beta) 
     max_time = str(options.max_time)
     max_turns = str(options.max_turns)
-    filename = "gameTrace-" + ifAlphaBeta + "-" + max_time + "-" + max_turns + ".txt"
+    filename = "gameTrace-" + if_alpha_beta + "-" + max_time + "-" + max_turns + ".txt"
     trace_file = open(filename, "w") 
     trace_file.write("Game Trace \n\n\n" +
                      "Game Parameters:\n" + 
@@ -753,22 +757,21 @@ def main():
 
     trace_file.write("\n\nInitial Configuration: \n" + str(game.to_string()) + "\n\n")
 
-
-    game_parameters(options)
-
-
     # the main game loop
     while True:
         print()
         print(game)
         winner = game.has_winner()
+        
+        # write final configuration of board and declare winner if there is one
+        # otherwise write the action taken to the trace file
         if winner is not None:
             print(f"{winner.name} wins!")
             trace_file.write("\n\n\n" + f"{winner.name} wins in " + str(game.turns_played) + " turns!")
             trace_file.write("\n\nFinal Board Configuration: \n\n")
             trace_file.write(str(game.to_string()))
             break
-        else:
+        else: 
             trace_file.write("\n\n" + str(game.to_string()))
             
         if game.options.game_type == GameType.AttackerVsDefender:
