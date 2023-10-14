@@ -266,6 +266,25 @@ class Game:
         self.set(Coord(md,md-2),Unit(player=Player.Attacker,type=UnitType.Program))
         self.set(Coord(md-1,md-1),Unit(player=Player.Attacker,type=UnitType.Firewall))
 
+     # Heuristic function based on the following: e0 = (3VP1 + 3TP1 + 3FP1 + 3PP1 + 9999AIP1) − (3VP2 + 3TP2 + 3FP2 + 3PP2 + 9999AIP2) 
+    def heuristic_e0(self) -> int:
+        vp1 = 3 * self.count_nb_units(Player.Attacker, UnitType.Virus)
+        tp1 = 3 * self.count_nb_units(Player.Attacker, UnitType.Tech)
+        fp1 = 3 * self.count_nb_units(Player.Attacker, UnitType.Firewall)
+        pp1 = 3 * self.count_nb_units(Player.Attacker, UnitType.Program)
+        aip1 = 999 * self.count_nb_units(Player.Attacker, UnitType.AI)
+
+        vp2 = 3 * self.count_nb_units(Player.Defender, UnitType.Virus)
+        tp2 = 3 * self.count_nb_units(Player.Defender, UnitType.Tech)
+        fp2 = 3 * self.count_nb_units(Player.Defender, UnitType.Firewall)
+        pp2 = 3 * self.count_nb_units(Player.Defender, UnitType.Program)
+        aip2 = 999 * self.count_nb_units(Player.Defender, UnitType.AI)
+
+        return (vp1 + tp1 + fp1 + pp1 + aip1) - (vp2 + tp2 + fp2 + pp2 + aip2)
+
+    def heuristic_evaluation(self) -> int:
+        return self.heuristic_e0()
+
     def clone(self) -> Game:
         """Make a new copy of a game for minimax recursion.
 
