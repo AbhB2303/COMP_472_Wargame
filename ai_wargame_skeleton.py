@@ -581,6 +581,20 @@ class Game:
             unit = self.get(coord)
             if unit is not None and unit.player == player:
                 yield (coord,unit)
+                
+    def all_units(self) -> dict:
+        """Iterates over all units belonging to a player and return them."""
+        player1_unit_counts = { "virus": 0, "tech": 0, "firewall": 0, "program": 0, "ai": 0 }
+        player2_unit_counts = { "virus": 0, "tech": 0, "firewall": 0, "program": 0, "ai": 0 }
+        
+        for coord in CoordPair.from_dim(self.options.dim).iter_rectangle():
+            unit = self.get(coord)
+            if unit is not None:
+                if unit.player == Player.Attacker:
+                    player1_unit_counts[unit.type.name.lower()] += 1
+                else:
+                    player2_unit_counts[unit.type.name.lower()] += 1
+        return player1_unit_counts, player2_unit_counts
 
     def is_finished(self) -> bool:
         """Check if the game is over."""
@@ -607,7 +621,7 @@ class Game:
             move.src = src
             for dst in src.iter_adjacent():
                 move.dst = dst
-                if self.is_valid_move(move):
+                if self.is_valid_move(move) or self.handle_attack(move) or self.handle_repair(move) or self.handle_self_destruct(move):
                     yield move.clone()
             move.dst = src
             yield move.clone()
@@ -625,14 +639,7 @@ class Game:
         """Suggest the next move using minimax alpha beta. TODO: REPLACE RANDOM_MOVE WITH PROPER GAME LOGIC!!!"""
         start_time = datetime.now()
 
-        # Determine if player is max
-        if self.next_player is Player.Attacker:
-            is_max = True
-        else:
-            is_max = False
-        #print("isMax equals ", is_max)
-        #(score, move, avg_depth) = self.random_move()
-        (score, move, avg_depth) = self.minimax(4, is_max, 0)
+        (score, move, avg_depth) = self.minimax(4, (self.next_player is Player.Attacker), 0)
         print("Score, move, avg_depth", (score, move, avg_depth))
 
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
@@ -652,28 +659,13 @@ class Game:
 
 
     def heuristic (self):
-
-        # e0 = (3VP1 + 3TP1 + 3FP1 + 3PP1 + 9999AIP1) − (3VP2 + 3TP2 + 3FP2 + 3PP2 + 9999AIP2
-
-        # Inner function to count the units for the player in question
-
-        def count_units_for_player (player: Player) -> dict:
-            return {
-                "virus": sum(1 for _, unit in self.player_units(player) if unit.type == UnitType.Virus),
-                "tech": sum(1 for _, unit in self.player_units(player) if unit.type == UnitType.Tech),
-                "firewall": sum(1 for _, unit in self.player_units(player) if unit.type == UnitType.Firewall),
-                "program": sum(1 for _, unit in self.player_units(player) if unit.type == UnitType.Program),
-                "ai": sum(1 for _, unit in self.player_units(player) if unit.type == UnitType.AI)
-            }
-
         # Retrieve unit counts per player
-        player1_unit_count = count_units_for_player(Player.Attacker)
-        player2_unit_count = count_units_for_player(Player.Defender)
-
+        player1_unit_count, player2_unit_count = self.all_units()
         # Heuristic value is calculated with formula
         heuristic_value = (3*player1_unit_count["virus"] + 3*player1_unit_count["tech"] + 3*player1_unit_count["firewall"] + 3*player1_unit_count["program"] + 9999*player1_unit_count["ai"] ) - (3*player2_unit_count["virus"] + 3*player2_unit_count["tech"] + 3*player2_unit_count["firewall"] + 3*player2_unit_count["program"] + 9999*player2_unit_count["ai"] )
 
         return heuristic_value
+    
     def minimax (self, depth: int, is_max: bool, current_depth: int = 0, ) -> Tuple[float, CoordPair | None, int]:
 
         # Minimax without alpha-beta pruning
@@ -689,51 +681,30 @@ class Game:
         # The commented out print code is to test and debug
 
         #For Max Player
-        if is_max:
-            max_evaluation = float('-inf')
-            for move in self.move_candidates():
-                #print("Move", move)
-                cloned_game = self.clone()
-                cloned_game.perform_move(move)
-                evaluation_value = cloned_game.heuristic()
-
-                #print("Evaluation value ", evaluation_value)
+        max_evaluation = float('-inf')
+        min_evaluation = float('inf')
+        
+        for move in self.move_candidates():
+            cloned_game = self.clone()
+            cloned_game.perform_move(move)
+            evaluation_value = cloned_game.heuristic()
+            if is_max:
                 if evaluation_value > max_evaluation:
                     max_evaluation = evaluation_value
                     best_move = move
-                    #print(f"[Depth: {current_depth}] Max Player considering move {move} with evaluation {evaluation_value}")
                 evaluation_value, _, depth_reached = cloned_game.minimax(depth - 1, False, current_depth + 1)
-                total_depth += depth_reached
-                total_nodes += 1
-                if evaluation_value > max_evaluation:
-                    max_evaluation = evaluation_value
-                    best_move = move
-                    #print(f"[In Max section, best move: {best_move}] Max evaluation {max_evaluation} with evaluation value {evaluation_value}")
-            average_depth = total_depth/total_nodes if total_nodes > 0 else 0
-            return max_evaluation, best_move, average_depth
-        #For Min Player
-        else:
-            min_evaluation = float('inf')
-            for move in self.move_candidates():
-                #print("Move", move)
-                cloned_game = self.clone()
-                cloned_game.perform_move(move)
-                evaluation_value = cloned_game.heuristic()
-
-                #print(f"[Depth: {current_depth}] Min Player considering move {move} with evaluation {evaluation_value}")
+            else:
                 if evaluation_value < min_evaluation:
                     min_evaluation = evaluation_value
                     best_move = move
-                    #print(f"[In Min section, best move: {best_move}] Min evaluation {min_evaluation} with evaluation value {evaluation_value}")
-
                 evaluation_value, _, depth_reached = cloned_game.minimax(depth - 1, True, current_depth + 1)
-                total_depth += depth_reached
-                total_nodes += 1
-                if evaluation_value < min_evaluation:
-                    min_evaluation = evaluation_value
-                    best_move = move
-                    #print("In is min #2, best move is ", best_move, min_evaluation)
-            average_depth = total_depth / total_nodes if total_nodes > 0 else 0
+            total_depth += depth_reached
+            total_nodes += 1
+                    
+        average_depth = total_depth/total_nodes if total_nodes > 0 else 0
+        if is_max:
+            return max_evaluation, best_move, average_depth
+        else:
             return min_evaluation, best_move, average_depth
 
     def post_move_to_broker(self, move: CoordPair):
