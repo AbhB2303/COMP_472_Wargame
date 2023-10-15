@@ -384,16 +384,8 @@ class Game:
                 # Have both units damaged
                 defender_unit.mod_health(-attacker_damage)
                 attacker_unit.mod_health(-defender_damage)
-
-                # Destroy Defending Unit if Health Reaches 0
-                if not defender_unit.is_alive():
-                    self.remove_dead(coords.dst)
-                    self.set(coords.dst, None)
-
-                # Destroy Attacking Unit if Health Reaches 0
-                if not attacker_unit.is_alive():
-                    self.remove_dead(coords.src)
-                    self.set(coords.src, None)
+                self.remove_dead(coords.dst)
+                self.remove_dead(coords.src)
 
                 return True
         return False
@@ -432,6 +424,7 @@ class Game:
                 unit = self.get(cell)
                 if unit is not None:
                     unit.mod_health(-2)
+                    self.remove_dead(cell)
             return True
         return False
 
@@ -458,7 +451,8 @@ class Game:
             self.set(coords.src,None)
             if trace_file:
                 trace_file.write("move: " + str(coords.to_string()))
-            return (True,"")
+                print("\nmove: " + str(coords.to_string()) + "\n")
+            return (True,"move")
         else:
             # check and handle if move is an attack
             is_attack = self.handle_attack(coords)
@@ -473,16 +467,17 @@ class Game:
             if trace_file:
                 if is_attack:
                     trace_file.write("attack: "  + str(coords.to_string()))
-
+                    print("\nattack: "  + str(coords.to_string()) + "\n")
+                    return (True,"attack")
                 if is_repair:
                     trace_file.write("repair: "  + str(coords.to_string()))
-
+                    print("repair: "  + str(coords.to_string()) + "\n")
+                    return (True,"repair")
                 if is_self_destruct:
                     trace_file.write("self-destruct: "  + str(coords.to_string()))
+                    print("self-destruct: "  + str(coords.to_string()) + "\n")
+                    return (True,"self-destruct")
 
-            # if any of the above were true, return valid move to change turn
-            if (is_attack or is_repair or is_self_destruct):
-                return (True,"")
 
         return (False,"invalid move")
 
@@ -565,11 +560,11 @@ class Game:
                 else:
                     print("The move is not valid! Try again.")
 
-    def computer_turn(self) -> CoordPair | None:
+    def computer_turn(self, trace_file) -> CoordPair | None:
         """Computer plays a move."""
         mv = self.suggest_move()
         if mv is not None:
-            (success,result) = self.perform_move(mv)
+            (success,result) = self.perform_move(mv, trace_file)
             if success:
                 print(f"Computer {self.next_player.name}: ",end='')
                 print(result)
@@ -586,16 +581,19 @@ class Game:
     def all_units(self) -> dict:
         """Iterates over all units belonging to a player and return them."""
         player1_unit_counts = { "virus": 0, "tech": 0, "firewall": 0, "program": 0, "ai": 0 }
+        player1_unit_health = { "virus": 0, "tech": 0, "firewall": 0, "program": 0, "ai": 0 }
         player2_unit_counts = { "virus": 0, "tech": 0, "firewall": 0, "program": 0, "ai": 0 }
-        for row in range(0, self.options.dim):
-            for col in range(0, self.options.dim):
-                unit = self.get(Coord(row, col))
-                if unit is not None:
-                    if unit.player == Player.Attacker:
-                        player1_unit_counts[unit.type.name.lower()] += 1
-                    else:
-                        player2_unit_counts[unit.type.name.lower()] += 1
-        return player1_unit_counts, player2_unit_counts
+        player2_unit_health = { "virus": 0, "tech": 0, "firewall": 0, "program": 0, "ai": 0 }
+        for coord in CoordPair.from_dim(self.options.dim).iter_rectangle():
+            unit = self.get(coord)
+            if unit is not None:
+                if unit.player == Player.Attacker:
+                    player1_unit_counts[unit.type.name.lower()] += 1
+                    player1_unit_health[unit.type.name.lower()] += (unit.health)
+                else:
+                    player2_unit_counts[unit.type.name.lower()] += 1
+                    player2_unit_health[unit.type.name.lower()] += (unit.health)
+        return player1_unit_counts, player2_unit_counts, player1_unit_health, player2_unit_health
 
     def is_finished(self) -> bool:
         """Check if the game is over."""
@@ -640,13 +638,10 @@ class Game:
         """Suggest the next move using minimax alpha beta. TODO: REPLACE RANDOM_MOVE WITH PROPER GAME LOGIC!!!"""
         start_time = datetime.now()
 
-        (score, move, avg_depth) = self.minimax(self.options.max_depth, (self.next_player is Player.Attacker), 0)
-        print("Score, move, avg_depth", (score, move, avg_depth))
-
+        (score, move, avg_depth) = self.minimax(self.options.max_depth, (self.next_player is Player.Attacker))
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
-        # print(f"Heuristic score: {score}")
-        print(f"Heuristic score: {self.heuristic()}")
+        print(f"Heuristic score: {score}")
         print(f"Average recursive depth: {avg_depth:0.1f}")
         print(f"Evals per depth: ",end='')
         for k in sorted(self.stats.evaluations_per_depth.keys()):
@@ -659,21 +654,32 @@ class Game:
         return move
 
 
-    def heuristic (self):
+    def heuristic (self, heuristic):
         # Retrieve unit counts per player
-        player1_unit_count, player2_unit_count = self.all_units()
         # Heuristic value is calculated with formula
-        heuristic_value = (3*player1_unit_count["virus"] + 3*player1_unit_count["tech"] + 3*player1_unit_count["firewall"] + 3*player1_unit_count["program"] + 9999*player1_unit_count["ai"] ) - (3*player2_unit_count["virus"] + 3*player2_unit_count["tech"] + 3*player2_unit_count["firewall"] + 3*player2_unit_count["program"] + 9999*player2_unit_count["ai"] )
+        heuristic_value = None
+        # heuristic e0, for demo
+        if heuristic == 0:
+            player1_unit_count, player2_unit_count, _, _ = self.all_units()
+            heuristic_value = (3*player1_unit_count["virus"] + 3*player1_unit_count["tech"] + 3*player1_unit_count["firewall"] + 3*player1_unit_count["program"] + 999*player1_unit_count["ai"] ) - (3*player2_unit_count["virus"] + 3*player2_unit_count["tech"] + 3*player2_unit_count["firewall"] + 3*player2_unit_count["program"] + 999*player2_unit_count["ai"] )
+        elif heuristic == 1: # heuristic e1: using health
+            player1_unit_count, player2_unit_count, player1_unit_health, player2_unit_health = self.all_units()
+            heuristic_value = (2*player1_unit_count["ai"]*player1_unit_health["ai"] + player1_unit_count["virus"]*player1_unit_health["virus"] + player1_unit_count["tech"]*player1_unit_health["tech"] + player1_unit_count["firewall"]*player1_unit_health["firewall"] + player1_unit_count["program"]*player1_unit_health["program"]) - (2*player2_unit_count["ai"]*player2_unit_health["ai"] + player2_unit_count["virus"]*player2_unit_health["virus"] + player2_unit_count["tech"]*player2_unit_health["tech"] + player2_unit_count["firewall"]*player2_unit_health["firewall"] + player2_unit_count["program"]*player2_unit_health["program"])
+        elif heuristic == 2: # heuristic e2
+            # using distance? to be discussed
+            player1_unit_count, player2_unit_count, player1_unit_health, player2_unit_health = self.all_units()
 
-        return heuristic_value
+        return heuristic_value  
     
-    def minimax (self, depth: int, is_max: bool, current_depth: int = 0, ) -> Tuple[float, CoordPair | None, int]:
+    def minimax (self, depth: int, is_max: bool, current_depth: int = 0, random: bool = False) -> Tuple[float, CoordPair | None, int]:
 
         # Minimax without alpha-beta pruning
-
+        e = 0
+        
         #Base case
+        # call to heuristic
         if current_depth == depth or self.has_winner() is not None:
-            return self.heuristic(), None, current_depth
+            return self.heuristic(e), None, current_depth
 
         best_move = None
         total_depth = 0
@@ -682,13 +688,17 @@ class Game:
         # The commented out print code is to test and debug
 
         #For Max Player
-        max_evaluation = float('-inf')
-        min_evaluation = float('inf')
-        
-        for move in self.move_candidates():
+        max_evaluation = MIN_HEURISTIC_SCORE
+        min_evaluation = MAX_HEURISTIC_SCORE
+        move_candidates = list(self.move_candidates())
+        # option to randomize candidates
+        if random:
+            random.shuffle(move_candidates)
+        for move in move_candidates:
             cloned_game = self.clone()
-            cloned_game.perform_move(move)
-            evaluation_value = cloned_game.heuristic()
+            (success, result) = cloned_game.perform_move(move)
+            # call to heuristic
+            evaluation_value = cloned_game.heuristic(e)
             if is_max:
                 if evaluation_value > max_evaluation:
                     max_evaluation = evaluation_value
@@ -872,24 +882,20 @@ def main():
 
         if game.options.game_type == GameType.AttackerVsDefender:
             game.human_turn(trace_file)
-            print(f"Heuristic value: {game.heuristic()}")
         elif game.options.game_type == GameType.AttackerVsComp and game.next_player == Player.Attacker:
             game.human_turn(trace_file)
-            print(f"Heuristic value: {game.heuristic()}")
         elif game.options.game_type == GameType.CompVsDefender and game.next_player == Player.Defender:
             game.human_turn(trace_file)
-            print(f"Heuristic value: {game.heuristic()}")
         else:
             player = game.next_player
-            move = game.computer_turn()
+            move = game.computer_turn(trace_file)
             if move is not None:
                 game.post_move_to_broker(move)
             else:
                 print("Computer doesn't know what to do!!!")
                 exit(1)
-            print(f"Heuristic value: {game.heuristic()}")
 
-            trace_file.write("\n\nGame Terminated")
+    trace_file.write("\n\nGame Terminated")
 
 ##############################################################################################################
 
