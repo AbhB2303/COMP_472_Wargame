@@ -586,14 +586,14 @@ class Game:
         """Iterates over all units belonging to a player and return them."""
         player1_unit_counts = { "virus": 0, "tech": 0, "firewall": 0, "program": 0, "ai": 0 }
         player2_unit_counts = { "virus": 0, "tech": 0, "firewall": 0, "program": 0, "ai": 0 }
-        
-        for coord in CoordPair.from_dim(self.options.dim).iter_rectangle():
-            unit = self.get(coord)
-            if unit is not None:
-                if unit.player == Player.Attacker:
-                    player1_unit_counts[unit.type.name.lower()] += 1
-                else:
-                    player2_unit_counts[unit.type.name.lower()] += 1
+        for row in range(0, self.options.dim):
+            for col in range(0, self.options.dim):
+                unit = self.get(Coord(row, col))
+                if unit is not None:
+                    if unit.player == Player.Attacker:
+                        player1_unit_counts[unit.type.name.lower()] += 1
+                    else:
+                        player2_unit_counts[unit.type.name.lower()] += 1
         return player1_unit_counts, player2_unit_counts
 
     def is_finished(self) -> bool:
@@ -639,7 +639,7 @@ class Game:
         """Suggest the next move using minimax alpha beta. TODO: REPLACE RANDOM_MOVE WITH PROPER GAME LOGIC!!!"""
         start_time = datetime.now()
 
-        (score, move, avg_depth) = self.minimax(4, (self.next_player is Player.Attacker), 0)
+        (score, move, avg_depth) = self.minimax(self.options.max_depth, (self.next_player is Player.Attacker), 0)
         print("Score, move, avg_depth", (score, move, avg_depth))
 
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
@@ -671,7 +671,7 @@ class Game:
         # Minimax without alpha-beta pruning
 
         #Base case
-        if depth == 0 or self.has_winner() is not None:
+        if current_depth == depth or self.has_winner() is not None:
             return self.heuristic(), None, current_depth
 
         best_move = None
@@ -692,12 +692,12 @@ class Game:
                 if evaluation_value > max_evaluation:
                     max_evaluation = evaluation_value
                     best_move = move
-                evaluation_value, _, depth_reached = cloned_game.minimax(depth - 1, False, current_depth + 1)
+                evaluation_value, _, depth_reached = cloned_game.minimax(depth, not is_max, current_depth + 1)
             else:
                 if evaluation_value < min_evaluation:
                     min_evaluation = evaluation_value
                     best_move = move
-                evaluation_value, _, depth_reached = cloned_game.minimax(depth - 1, True, current_depth + 1)
+                evaluation_value, _, depth_reached = cloned_game.minimax(depth, not is_max, current_depth + 1)
             total_depth += depth_reached
             total_nodes += 1
                     
