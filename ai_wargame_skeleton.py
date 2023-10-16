@@ -884,6 +884,12 @@ def main():
         # check if alpha beta is on
         if args.alpha_beta:
             options.alpha_beta = True
+        else:
+            answer = input("Would you like to use alpha-beta? (y/n): ")
+            if answer == "y":
+                options.alpha_beta = True
+            else:
+                options.alpha_beta = False
         beta_alpha = str(options.alpha_beta)
         # set heuristic used
         if args.e is not None:
