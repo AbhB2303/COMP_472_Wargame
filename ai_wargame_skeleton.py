@@ -843,7 +843,7 @@ def main():
     parser.add_argument('--game_type', type=str, default=None, help='game type: auto|attacker|defender|manual')
     parser.add_argument('--broker', type=str, help='play via a game broker')
     parser.add_argument('--alpha_beta', action='store_true', help='use alpha-beta pruning')
-    parser.add_argument('--e', type=int, default=0, help='heuristic')
+    parser.add_argument('--e', type=int, help='heuristic')
     
     args = parser.parse_args()
 
@@ -881,10 +881,25 @@ def main():
     heuristic = "AI off"
     beta_alpha = "AI off"
     if (game.options.game_type != GameType.AttackerVsDefender ):
+        # ask what depth to use
+        if args.max_depth is None:
+            while True:
+                answer = input("what depth would you like to use for the AI? (hit enter for default): ")
+                # if no input, use default
+                if answer == "":
+                    break
+                else:
+                    if int(answer) > 0:
+                        options.max_depth = int(answer)
+                        break
+                    else:
+                        print("Invalid answer: Please enter a number greater than 0.")
+                        continue
         # check if alpha beta is on
         if args.alpha_beta:
             options.alpha_beta = True
         else:
+            # if no argument, ask from command line
             answer = input("Would you like to use alpha-beta? (y/n): ")
             if answer == "y":
                 options.alpha_beta = True
@@ -895,7 +910,18 @@ def main():
         if args.e is not None:
             options.e = args.e
         else:
-            options.e = 0
+            while True:
+                answer = input("Which heuristic would you like to use? (0, 1, 2):")
+                if answer == "0":
+                    options.e = 0
+                elif answer == "1":
+                    options.e = 1
+                elif answer == "2":
+                    options.e = 2
+                else:
+                    print("Invalid answer: Please enter a value from 0 to 2.")
+                    continue
+                break
         heuristic = str(options.e)
     
     if_alpha_beta = str(options.alpha_beta) 
