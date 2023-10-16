@@ -864,7 +864,7 @@ def main():
     options = Options(game_type=game_type)
     
     # user input for configuration
-    # game_parameters(options)
+    game_parameters(options)
 
     # override class defaults via command line options
     if args.max_depth is not None:
