@@ -479,7 +479,7 @@ class Game:
                 trace_file.write("self-destruct: " + str(coords.to_string()))
                 print("self-destruct: " + str(coords.to_string()) + "\n")
             return (True, "self-destruct")
-
+        if trace_file: trace_file.write("\n\ninvalid move: " + str(coords.to_string()) + "\n\n")
         return (False, "invalid move")
 
     def next_turn(self):
