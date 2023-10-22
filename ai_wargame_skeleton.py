@@ -668,48 +668,43 @@ class Game:
             player1_unit_count, player2_unit_count, player1_unit_health, player2_unit_health = self.all_units()
             # For e1, the value of AI units for player1 are multiplied by 4 to make them weigh more
             # For the other unit types (for player1), we have the sum for Virus, Tech, Firewall, and Program
-            player1_value_ai = 4*player1_unit_count["ai"] * player1_unit_health["ai"]
+            player1_value_ai = 10*player1_unit_count["ai"] * player1_unit_health["ai"]
             player1_other_value = (
                 player1_unit_count["virus"] * player1_unit_health["virus"] +
                 player1_unit_count["tech"] * player1_unit_health["tech"] +
                 player1_unit_count["firewall"] * player1_unit_health["firewall"] +
                 player1_unit_count["program"] * player1_unit_health["program"])
 
-            player2_value_ai = 4*player2_unit_count["ai"] * player2_unit_health["ai"]
+            player2_value_ai = 10*player2_unit_count["ai"] * player2_unit_health["ai"]
             player2_other_value = (
                 player2_unit_count["virus"] * player2_unit_health["virus"] +
                 player2_unit_count["tech"] * player2_unit_health["tech"] +
                 player2_unit_count["firewall"] * player2_unit_health["firewall"] +
                 player2_unit_count["program"] * player2_unit_health["program"])
 
-            # For e1, we are adding a "penalty" if a player has fewer AI units than the other
-            # The penalty is negative when player1 has less AI units than player2
-            # The idea behind this is that for example, when player1 has less AI units than player2, we will get a negative value
-            # for the ai penalty value, which will reduce the value of player1 altogether
-            ai_penalty = 10
-            ai_penalty_value = ai_penalty * (player1_unit_count["ai"] - player2_unit_count["ai"])
-
-            heuristic_value = ((player1_value_ai + player1_other_value - ai_penalty_value) - (player2_value_ai + player2_other_value))
+            heuristic_value = ((player1_value_ai + player1_other_value) - (player2_value_ai + player2_other_value))
             
         elif heuristic == 2: # heuristic e2
             player1_unit_count, player2_unit_count, player1_unit_health, player2_unit_health = self.all_units()
-            # For e2,  the value of AI units for player1 and player2 are multiplied by 5 to make them weigh more
-            # This can kill the AI
-            player1_value_virus = 5 * player1_unit_count["virus"] * player1_unit_health["virus"]
+            # For e2,  the value of AI units for player1 and player2 are multiplied by 9 to make them weigh more
+            player1_value_virus = 9 * player1_unit_count["virus"] * player1_unit_health["virus"]
             player1_other_value = (
-                 player1_unit_count["tech"] * player1_unit_health["tech"] +
-                 player1_unit_count["firewall"] * player1_unit_health["firewall"] +
-                 player1_unit_count["program"] * player1_unit_health["program"] +
-                 player1_unit_count["ai"] * player1_unit_health["ai"])
+                 2*player1_unit_count["tech"] * player1_unit_health["tech"] +
+                 3*player1_unit_count["firewall"] * player1_unit_health["firewall"] +
+                 2*player1_unit_count["program"] * player1_unit_health["program"])
             
-            player2_value_virus = 5 * player2_unit_count["virus"] * player2_unit_health["virus"]
+            player2_value_virus = 9 * player2_unit_count["virus"] * player2_unit_health["virus"]
             player2_other_value = (
-                player2_unit_count["tech"] * player2_unit_health["tech"] +
-                player2_unit_count["firewall"] * player2_unit_health["firewall"] +
-                player2_unit_count["program"] * player2_unit_health["program"] +
-                player2_unit_count["ai"] * player2_unit_health["ai"])
+                2*player2_unit_count["tech"] * player2_unit_health["tech"] +
+                3*player2_unit_count["firewall"] * player2_unit_health["firewall"] +
+                2*player2_unit_count["program"] * player2_unit_health["program"])
+
+            # Here, the weight of the AI is modified so that we can have a stronger or weaker AI in overall  
+            changing_weight_ai = 0.1 * (player1_unit_count["ai"] - player2_unit_count["ai"]) + 1
+            player1_value_ai = changing_weight_ai * 4 *  player2_unit_count["ai"] * player2_unit_health["ai"]
+            player2_value_ai = changing_weight_ai * 4 *  player2_unit_count["ai"] * player2_unit_health["ai"]
             
-            heuristic_value = ((player1_value_virus + player1_other_value) - (player2_value_virus + player2_other_value))
+            heuristic_value = ((player1_value_virus + player1_other_value + player1_value_ai) - (player2_value_virus + player2_other_value + player2_value_ai))
 
 
         return heuristic_value  
