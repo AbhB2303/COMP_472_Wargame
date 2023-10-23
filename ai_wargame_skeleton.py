@@ -640,7 +640,7 @@ class Game:
         start_time = datetime.now()
         if self.options.alpha_beta:
             # We ar allowing 90% of the time limit
-            max_time = self.options.max_time * 0.9 
+            max_time = self.options.max_time * 0.99 
             initial_time_left = max_time
             print(f"Max allowed time: {max_time:.2f} seconds")
             print(f"Initial time left: {initial_time_left:.2f} seconds")
