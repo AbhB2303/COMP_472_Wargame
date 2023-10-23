@@ -146,6 +146,13 @@ class Coord:
         yield Coord(self.row+1,self.col)
         yield Coord(self.row,self.col+1)
 
+    def iter_diagonal(self) -> Iterable[Coord]:
+        """Iterates over diagonal Coords."""
+        yield Coord(self.row-1,self.col-1)
+        yield Coord(self.row-1,self.col+1)
+        yield Coord(self.row+1,self.col-1)
+        yield Coord(self.row+1,self.col+1)
+
     @classmethod
     def from_string(cls, s : str) -> Coord | None:
         """Create a Coord from a string. ex: D2."""
@@ -677,6 +684,53 @@ class Game:
         if trace_file: trace_file.write(f"\nElapsed time: {elapsed_seconds:0.1f}s\n")
         return move
 
+    # Position of the AI in the grid
+    def position_of_ai(self) -> Coord:
+        position_in_middle = Coord(2, 2)
+        grid = position_in_middle.iter_range(2)
+        # We are looking for the AI
+        for coord in grid:
+            unit = self.get(coord)
+            if unit and unit.player == Player.Defender and unit.type == UnitType.AI:
+                position = coord
+        return position
+
+    # Position of the virus in the grid
+    def position_of_virus(self) -> Iterable[Coord]:
+        position_in_middle = Coord(2, 2)
+        grid = position_in_middle.iter_range(2)
+        
+        # We are looking for the virus
+        for coord in grid:
+            unit = self.get(coord)
+            if unit and unit.type == UnitType.Virus:
+                yield coord
+
+    # This will get us the distance between a unit at coord1 to another on the row and the column
+    def distance_to(self, target_coord1: Coord, target_coord2: Coord) -> int:
+        distance = 0
+        difference_on_column = target_coord1.col - target_coord2.col
+        difference_on_row = target_coord1.row - target_coord2.row
+
+        # Looking for adjacent coordinates where different units can be
+        adjacent_coords = [ Coord(target_coord2.row, target_coord2.col - 1),
+                      Coord(target_coord2.row, target_coord2.col + 1),
+                      Coord(target_coord2.row - 1, target_coord2.col),
+                      Coord(target_coord2.row + 1, target_coord2.col)]
+
+        # If there is any difference in the adjacent coordinates, increment by 1 and so on
+        if difference_on_row > 0 and difference_on_column > 0 and self.get(Coord(target_coord2.row + 1, target_coord2.col + 1)):
+            distance += 1
+        elif difference_on_row < 0 and difference_on_column < 0 and self.get(Coord(target_coord2.row - 1, target_coord2.col - 1)):
+            distance += 1
+        elif difference_on_row < 0 and difference_on_column > 0 and self.get(Coord(target_coord2.row - 1, target_coord2.col + 1)):
+            distance += 1
+        elif difference_on_row > 0 and difference_on_column < 0 and self.get(Coord(target_coord2.row + 1, target_coord2.col - 1)):
+            distance += 1
+
+        distance += abs(difference_on_column) + abs(difference_on_row)
+        return distance
+
 
     def heuristic (self, heuristic):
         # Retrieve unit counts per player
@@ -690,8 +744,9 @@ class Game:
             player1_unit_count, player2_unit_count, player1_unit_health, player2_unit_health = self.all_units()
             heuristic_value = (2*player1_unit_count["ai"]*player1_unit_health["ai"] + player1_unit_count["virus"]*player1_unit_health["virus"] + player1_unit_count["tech"]*player1_unit_health["tech"] + player1_unit_count["firewall"]*player1_unit_health["firewall"] + player1_unit_count["program"]*player1_unit_health["program"]) - (2*player2_unit_count["ai"]*player2_unit_health["ai"] + player2_unit_count["virus"]*player2_unit_health["virus"] + player2_unit_count["tech"]*player2_unit_health["tech"] + player2_unit_count["firewall"]*player2_unit_health["firewall"] + player2_unit_count["program"]*player2_unit_health["program"])
         elif heuristic == 2: # heuristic e2
-            # using distance? to be discussed
-            player1_unit_count, player2_unit_count, player1_unit_health, player2_unit_health = self.all_units()
+            position_of_ai = self.position_of_ai() 
+            heuristic_value =  sum(1 / (position_of_ai.distance_to(position_of_virus) + 1) for position_of_virus in self.position_of_virus())
+            
 
         return heuristic_value  
     
