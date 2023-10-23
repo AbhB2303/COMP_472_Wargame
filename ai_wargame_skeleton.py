@@ -563,7 +563,7 @@ class Game:
 
     def computer_turn(self, trace_file) -> CoordPair | None:
         """Computer plays a move."""
-        mv = self.suggest_move()
+        mv = self.suggest_move(trace_file)
         if mv is not None:
             (success,result) = self.perform_move(mv, trace_file)
             if success:
@@ -635,24 +635,46 @@ class Game:
         else:
             return (0, None, 0)
 
-    def suggest_move(self) -> CoordPair | None:
+    def suggest_move(self, trace_file = None) -> CoordPair | None:
         """Suggest the next move using minimax alpha beta. TODO: REPLACE RANDOM_MOVE WITH PROPER GAME LOGIC!!!"""
         start_time = datetime.now()
         if self.options.alpha_beta:
-            (score, move) = self.alpha_beta(self.next_player == Player.Attacker, 0, float('-inf'), float('inf'), self.options.randomize_moves)
+            (score, move) = self.alpha_beta(self.next_player == Player.Attacker, 0, float('-inf'), float('inf'), self.options.randomize_moves, start_time)
         else:
-            (score, move) = self.minimax(self.next_player == Player.Attacker, 0, self.options.randomize_moves)
+            (score, move) = self.minimax(self.next_player == Player.Attacker, 0, self.options.randomize_moves, start_time)
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
         print(f"Heuristic score: {score}")
+        if trace_file: trace_file.write(f"\nHeuristic score: {score}\n")
+        
+        # calculations for cumulative evaluation, evals per depth, % evals per depth, and branching factor
         print(f"Evals per depth: ",end='')
+        branching_factors_sum = 0
         for k in sorted(self.stats.evaluations_per_depth.keys()):
+            parent_node = k - 1
+            branching_factor = 0
+            if parent_node >= 0:
+                branching_factor = self.stats.evaluations_per_depth[k]/self.stats.evaluations_per_depth[parent_node]
+            branching_factors_sum += branching_factor
+            if k == 0: 
+                if trace_file: trace_file.write(f"\nEvals per depth: ")
             print(f"{k}:{self.stats.evaluations_per_depth[k]} ",end='')
+            # cumulative percent eval by depth
+            print(f"({self.stats.evaluations_per_depth[k]/sum(self.stats.evaluations_per_depth.values()) * 100:0.1f}%) ",end='')
+            if trace_file: 
+                trace_file.write(f"\n{k}:{self.stats.evaluations_per_depth[k]} ")
+                trace_file.write(f"({self.stats.evaluations_per_depth[k]/sum(self.stats.evaluations_per_depth.values()) * 100:0.1f}%) ")
         print()
+        avg_branching_factor = branching_factors_sum / len(self.stats.evaluations_per_depth)
+        print(f"Average Branching Factor: {avg_branching_factor:0.1f}")
+        if trace_file: trace_file.write(f"\nAverage Branching Factor: {avg_branching_factor:0.1f}\n")
         total_evals = sum(self.stats.evaluations_per_depth.values())
+        print("Cumulative Evals: " + str(total_evals))
+        if trace_file: trace_file.write(f"\nCumulative Evals: {total_evals}\n")
         if self.stats.total_seconds > 0:
             print(f"Eval perf.: {total_evals/self.stats.total_seconds/1000:0.1f}k/s")
         print(f"Elapsed time: {elapsed_seconds:0.1f}s")
+        if trace_file: trace_file.write(f"\nElapsed time: {elapsed_seconds:0.1f}s\n")
         return move
 
 
@@ -673,13 +695,22 @@ class Game:
 
         return heuristic_value  
     
-    def alpha_beta(self, is_max: bool, current_depth: int = 0, alpha: int = float('-inf'), beta: int = float('inf'), random_candidate: bool = False) -> Tuple[float, CoordPair | None]:
+    def alpha_beta(self, is_max: bool, current_depth: int = 0, alpha: int = float('-inf'), beta: int = float('inf'), random_candidate: bool = False, start_time = None) -> Tuple[float, CoordPair | None]:
 
         e = self.options.heuristic
+        timeout = self.options.max_time
+        if current_depth not in self.stats.evaluations_per_depth:
+            self.stats.evaluations_per_depth[current_depth] = 0
+        self.stats.evaluations_per_depth[current_depth] += 1
         
         # Base case
         if current_depth == self.options.max_depth or self.is_finished():
             return self.heuristic(e), None
+        
+        # if we are close to timeout, return value
+        if timeout is not None and start_time is not None:
+            if (datetime.now() - start_time).total_seconds() >= timeout * 0.90:
+                return self.heuristic(e), None
 
         best_move = None
 
@@ -698,7 +729,7 @@ class Game:
             cloned_game.next_turn()
 
             if success:
-                child_score, _ = cloned_game.alpha_beta(is_max= (not is_max), current_depth=(current_depth + 1), random_candidate=random_candidate, alpha=alpha, beta=beta)
+                child_score, _ = cloned_game.alpha_beta(is_max= (not is_max), current_depth=(current_depth + 1), random_candidate=random_candidate, alpha=alpha, beta=beta, start_time=start_time)
                 if is_max:
                     alpha = max(alpha, best_score)
                     if child_score > best_score:
@@ -714,13 +745,22 @@ class Game:
             
         return best_score, best_move
     
-    def minimax(self,is_max: bool, current_depth: int = 0, random_candidate: bool = False) -> Tuple[float, CoordPair | None]:
+    def minimax(self,is_max: bool, current_depth: int = 0, random_candidate: bool = False, start_time = None) -> Tuple[float, CoordPair | None]:
 
         e = self.options.heuristic
+        timeout = self.options.max_time
+        if current_depth not in self.stats.evaluations_per_depth:
+            self.stats.evaluations_per_depth[current_depth] = 0
+        self.stats.evaluations_per_depth[current_depth] += 1
         
         # Base case
         if current_depth == self.options.max_depth or self.is_finished():
             return self.heuristic(e), None
+        
+                # if we are close to timeout, return value
+        if timeout is not None and start_time is not None:
+            if (datetime.now() - start_time).total_seconds() >= timeout * 0.90:
+                return self.heuristic(e), None
 
         best_move = None
 
@@ -739,7 +779,7 @@ class Game:
             cloned_game.next_turn()
 
             if success:
-                child_score, _ = cloned_game.minimax(not is_max, current_depth + 1, random_candidate)
+                child_score, _ = cloned_game.minimax(not is_max, current_depth + 1, random_candidate, start_time)
                 if is_max:
                     if child_score > best_score:
                         best_score = child_score
@@ -934,8 +974,9 @@ def main():
                      "\ntimeout: " + str(options.max_time) + " seconds" +
                      "\nmax turns: " + str(options.max_turns) +
                      "\nalpha-beta: " + beta_alpha +
-                     "\nplay mode: " + str(options.game_type) +
-                     "\nheuristic: " + heuristic + "\n\n\n")
+                     "\nplay mode: " + str(options.game_type))
+    
+    if heuristic : trace_file.write("\nheuristic: " + heuristic + "\n\n\n")
 
 
     trace_file.write("\n\nInitial Configuration: \n" + str(game.to_string()) + "\n\n")
