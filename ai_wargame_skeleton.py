@@ -639,7 +639,12 @@ class Game:
         """Suggest the next move using minimax alpha beta. TODO: REPLACE RANDOM_MOVE WITH PROPER GAME LOGIC!!!"""
         start_time = datetime.now()
         if self.options.alpha_beta:
-            (score, move) = self.alpha_beta(self.next_player == Player.Attacker, 0, float('-inf'), float('inf'), self.options.randomize_moves)
+            # We ar allowing 90% of the time limit
+            max_time = self.options.max_time * 0.9 
+            initial_time_left = max_time
+            print(f"Max allowed time: {max_time:.2f} seconds")
+            print(f"Initial time left: {initial_time_left:.2f} seconds")
+            (score, move) = self.alpha_beta(self.next_player == Player.Attacker, 0, float('-inf'), float('inf'), self.options.randomize_moves, max_time, initial_time_left)
         else:
             (score, move) = self.minimax(self.next_player == Player.Attacker, 0, self.options.randomize_moves)
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
@@ -673,7 +678,7 @@ class Game:
 
         return heuristic_value  
     
-    def alpha_beta(self, is_max: bool, current_depth: int = 0, alpha: int = float('-inf'), beta: int = float('inf'), random_candidate: bool = False) -> Tuple[float, CoordPair | None]:
+    def alpha_beta(self, is_max: bool, current_depth: int = 0, alpha: int = float('-inf'), beta: int = float('inf'), random_candidate: bool = False, max_time: float = None, initial_time_left: float = None) -> Tuple[float, CoordPair | None]:
 
         e = self.options.heuristic
         
